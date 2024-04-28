@@ -2,7 +2,6 @@ package cardinality.hash;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 
 public class MessageDigestHashCodeProvider<T> implements HashCodeProvider<T> {
 
@@ -11,13 +10,13 @@ public class MessageDigestHashCodeProvider<T> implements HashCodeProvider<T> {
     public MessageDigestHashCodeProvider(MessageDigest messageDigest) {
         this.messageDigest = messageDigest;
     }
+
     @Override
-    public long hashCode(T object) {
+    public int hashCode(T object) {
         byte[] digest = messageDigest.digest(object.toString().getBytes());
         ByteBuffer bb = ByteBuffer.wrap(digest);
         long aLong = bb.getLong();
-        printBinary(aLong);
-return aLong;
+        return (int) aLong;
     }
 
     public static void printBinary(long num) {

@@ -5,11 +5,8 @@ import cardinality.hash.SimpleHashCodeProvider;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.OptionalDouble;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Stream;
 
 public class HyperLogLog<T> implements CardinalityEstimator<T> {
 
@@ -57,18 +54,21 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
 
     @Override
     public void add(T t) {
-        long hashCode = hashCodeProvider.hashCode(t); // step 1 get hashcode
-        int position = (int) getRegisterNumber(hashCode);
+        int hashCode = hashCodeProvider.hashCode(t); // step 1 get hashcode
+        int registerIndex = (hashCode >>> (Integer.SIZE - logOfNumberOfRegisters)) & (numberOfRegisters - 1);     // getRegisterNumber(hashCode);
         int positionOfMostSignificantBit = getPositionOfMostSignificantBit(hashCode);
-        registers[position].set(Math.max(positionOfMostSignificantBit, registers[position].get()));
+        if(positionOfMostSignificantBit > 25) {
+            System.out.println(Thread.currentThread().getName() + "Whatafuck is going on");
+        }
+        registers[registerIndex].set(Math.max(positionOfMostSignificantBit, registers[registerIndex].get()));
     }
 
-    private int getPositionOfMostSignificantBit(long hashCode) {
-        return Long.numberOfLeadingZeros(hashCode << logOfNumberOfRegisters);
+    private int getPositionOfMostSignificantBit(int hashCode) {
+        return Integer.numberOfTrailingZeros(hashCode) + 1;
     }
 
-    private long getRegisterNumber(long hashCode) {
-        return hashCode >>> (Long.SIZE - logOfNumberOfRegisters);
+    private int getRegisterNumber(int hashCode) {
+        return hashCode >>> (Integer.SIZE - logOfNumberOfRegisters);
     }
 
     @Override
@@ -81,7 +81,20 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
         System.out.println("Initial estimate is " + estimate);
         long adjustEstimate = adjustEstimate(estimate);
         System.out.println("Adjusted estimate is " + adjustEstimate);
+        printRegisters();
         return adjustEstimate;
+    }
+
+    private void printRegisters() {
+
+        Map<Long, Long> map = new HashMap<>();
+        for(AtomicLong x : registers) {
+            if(map.get(x.get()) == null) {
+                map.put(x.get(), 0L);
+            }
+            map.put(x.get(), map.get(x.get()) + 1);
+        }
+        System.out.println(map);
     }
 
     private long adjustEstimate(double estimate) {
