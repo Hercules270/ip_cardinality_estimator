@@ -21,6 +21,8 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
     private final int numberOfRegisters; // m
     private final AtomicLong[] registers; // M[j] registers
     private final HashCodeProvider<T> hashCodeProvider; // h(D) hash function
+    private final int registerIndexMask;
+    private final Map<String, Integer> map;
 
     public HyperLogLog() {
         this(DEFAULT_LOG_OF_NUMBER_OF_REGISTERS, DEFAULT_HASH_CODE_PROVIDER);
@@ -31,8 +33,10 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
 
         this.logOfNumberOfRegisters = logOfNumberOfRegisters;
         this.numberOfRegisters = 1 << logOfNumberOfRegisters;
+        this.registerIndexMask = numberOfRegisters - 1;
         this.registers = initializeRegisters(numberOfRegisters);
         this.hashCodeProvider = hashCodeProvider;
+        this.map = new HashMap<>();
 
     }
 
@@ -54,21 +58,21 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
 
     @Override
     public void add(T t) {
-        int hashCode = hashCodeProvider.hashCode(t); // step 1 get hashcode
-        int registerIndex = (hashCode >>> (Integer.SIZE - logOfNumberOfRegisters)) & (numberOfRegisters - 1);     // getRegisterNumber(hashCode);
+        long hashCode = hashCodeProvider.hashCode(t); // step 1 get hashcode
+        int registerIndex = getRegisterNumber(hashCode);
         int positionOfMostSignificantBit = getPositionOfMostSignificantBit(hashCode);
-        if(positionOfMostSignificantBit > 25) {
-            System.out.println(Thread.currentThread().getName() + "Whatafuck is going on");
-        }
+//        if (positionOfMostSignificantBit > 25) {
+//            System.out.println(Thread.currentThread().getName() + "Whatafuck is going on");
+//        }
         registers[registerIndex].set(Math.max(positionOfMostSignificantBit, registers[registerIndex].get()));
     }
 
-    private int getPositionOfMostSignificantBit(int hashCode) {
-        return Integer.numberOfTrailingZeros(hashCode) + 1;
+    private int getPositionOfMostSignificantBit(long hashCode) {
+        return Long.numberOfLeadingZeros(hashCode) + 1;
     }
 
-    private int getRegisterNumber(int hashCode) {
-        return hashCode >>> (Integer.SIZE - logOfNumberOfRegisters);
+    private int getRegisterNumber(long hashCode) {
+        return (int) hashCode & registerIndexMask;
     }
 
     @Override
@@ -88,13 +92,13 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
     private void printRegisters() {
 
         Map<Long, Long> map = new HashMap<>();
-        for(AtomicLong x : registers) {
-            if(map.get(x.get()) == null) {
+        for (AtomicLong x : registers) {
+            if (map.get(x.get()) == null) {
                 map.put(x.get(), 0L);
             }
             map.put(x.get(), map.get(x.get()) + 1);
         }
-        System.out.println(map);
+        System.out.println("Registers is " + map);
     }
 
     private long adjustEstimate(double estimate) {
@@ -102,10 +106,6 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
             long x = adjustSmallRange(estimate);
             System.out.println("Small range adjustment is " + x);
             return x;
-        } else if (requiresLargeRangeCorrection(estimate)) {
-            long y =  adjustLargeRange(estimate);
-            System.out.println("Large range adjustment is " + y);
-            return y;
         }
         return Double.valueOf(estimate).longValue();
     }

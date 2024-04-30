@@ -12,11 +12,11 @@ public class MessageDigestHashCodeProvider<T> implements HashCodeProvider<T> {
     }
 
     @Override
-    public int hashCode(T object) {
+    public long hashCode(T object) {
         byte[] digest = messageDigest.digest(object.toString().getBytes());
         ByteBuffer bb = ByteBuffer.wrap(digest);
         long aLong = bb.getLong();
-        return (int) aLong;
+        return aLong;
     }
 
     public static void printBinary(long num) {
