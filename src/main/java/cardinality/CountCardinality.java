@@ -8,16 +8,17 @@ import cardinality.io.BufferedReaderConsumer;
 import cardinality.io.FileChannelConsumer;
 import cardinality.io.OneThreadConsumer;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import static cardinality.utils.Constants.NUMBER_OF_WORKER_THREADS;
 import static cardinality.utils.Constants.POISON_PILL;
 
 public class CountCardinality {
 
-    private static final int NUMBER_OF_WORKER_THREADS = 15;
 
     public static void main(String[] args) throws InterruptedException {
         final var countDownLatch = new CountDownLatch(NUMBER_OF_WORKER_THREADS);
@@ -31,16 +32,25 @@ public class CountCardinality {
         long startTime = System.currentTimeMillis();
         Thread readThread = new Thread(() -> fileConsumer.readAndConsume(ipAddress -> consumeIPAddress(set, blockingQueue, ipAddress), () -> action(blockingQueue)));
         Thread readThread2 = new Thread(() -> bufferedFileConsumer.readAndConsume(ipAddress -> doNothing(set, blockingQueue, ipAddress), () -> action(blockingQueue)));
-        Thread readThread3 = new Thread(() -> fileChannelReader.readAndConsume(ipAddress -> doNothing(set, blockingQueue, ipAddress), () -> action(blockingQueue)));
-
+        Thread readThread3 = new Thread(() -> fileChannelReader.readAndConsume(ipAddress -> consumeIPAddress(set, blockingQueue, ipAddress), () -> action(blockingQueue)));
+        System.out.println("====================");
+        System.out.println("Start time is " + LocalDateTime.now());
 //        readThread.start();
 //        readThread2.start();
         readThread3.start();
-        for (int i = 0; i < NUMBER_OF_WORKER_THREADS; i++) {
+//        new Thread(new IpConsumer(hyperLogLog, blockingQueue, countDownLatch)).start();
+        for (int i = 0; i < 1; i++) {
             new Thread(new IpConsumer(hyperLogLog, blockingQueue, countDownLatch)).start();
         }
         readThread3.join();
-//        countDownLatch.await();
+        System.out.println("====================");
+        System.out.println("Joined producer threads " + LocalDateTime.now());
+        for (int i = 0; i < 19; i++) {
+            new Thread(new IpConsumer(hyperLogLog, blockingQueue, countDownLatch)).start();
+        }
+        countDownLatch.await();
+        System.out.println("===================");
+        System.out.println("Joined consumer threads " + LocalDateTime.now());
         long cardinality = hyperLogLog.getCardinality();
         long endTime = System.currentTimeMillis();
         System.out.println("Cardinality of IP addresses is: " + cardinality);
@@ -72,10 +82,19 @@ public class CountCardinality {
         set.add(ipAddress);
     }
 
+    static int sizeLimit = 20000;
+
     private static void consumeIPAddress(HashSet<String> set, LinkedBlockingQueue<String> blockingQueue, String ipAddress) {
         try {
 //            System.out.println("Sending: " + ipAddress);
-            set.add(ipAddress);
+//            set.add(ipAddress);
+            int size = blockingQueue.size();
+            if (size > sizeLimit) {
+                System.out.println("Current size is " + size);
+            }
+            if (blockingQueue.size() == Integer.MAX_VALUE) {
+                System.out.println("Filled with size: " + blockingQueue.size());
+            }
             blockingQueue.put(ipAddress);
         } catch (InterruptedException ex) {
             ex.printStackTrace();

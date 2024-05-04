@@ -18,6 +18,7 @@ public class LineReaderThread extends Thread {
         while (buffer.hasRemaining()) {
             char k = (char) buffer.get();
             if (k == '\n') {
+//                System.out.println("PUBLISHED IP:  " + builder);
                 consumer.accept(builder.toString());
                 builder = new StringBuilder();
             } else {

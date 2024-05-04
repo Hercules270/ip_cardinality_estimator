@@ -23,10 +23,19 @@ public class IpConsumer implements Runnable {
 
     @Override
     public void run() {
+
+//        System.out.println("EBEEEEEEE " + Thread.currentThread().getName());
+//        countDownLatch.countDown();
+        System.out.println("Initializing " + Thread.currentThread().getName());
         while (true) {
             String ipAddress = null;
             try {
                 ipAddress = blockingQueue.poll(3, TimeUnit.of(ChronoUnit.SECONDS));
+                if(ipAddress == null) {
+                    countDownLatch.countDown();
+                    return;
+//                System.out.println("CONSUMED IP " + ipAddress)
+                };
                 if (POISON_PILL.equals(ipAddress)) {
                     System.out.println("Found poison pill");
                     countDownLatch.countDown();
@@ -37,5 +46,6 @@ public class IpConsumer implements Runnable {
                 throw new RuntimeException(e);
             }
         }
+
     }
 }
