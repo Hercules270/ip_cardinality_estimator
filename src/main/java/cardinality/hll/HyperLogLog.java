@@ -16,7 +16,6 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
     private static final HashCodeProvider DEFAULT_HASH_CODE_PROVIDER = new SimpleHashCodeProvider<>();
     private static final double SMALL_RANGE_CORRECTION_COEFFICIENT = 5 / 2;
     private static final double LARGE_RANGE_CORRECTION_COEFFICIENT = (1.0 / 30) * Math.pow(2, 32);
-
     private final int logOfNumberOfRegisters; // b where m = 2^b
     private final int numberOfRegisters; // m
     private final AtomicLong[] registers; // M[j] registers
@@ -59,12 +58,20 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
     @Override
     public void add(T t) {
         long hashCode = hashCodeProvider.hashCode(t); // step 1 get hashcode
+//        System.out.println(t);
+//        printBinary(hashCode);
+//        System.out.println(Long.toBinaryString(hashCode));
+//        System.out.println("Long string size " + Long.toBinaryString(hashCode).length() + " Leading zeros " + Long.numberOfLeadingZeros(hashCode));
         int registerIndex = getRegisterNumber(hashCode);
         int positionOfMostSignificantBit = getPositionOfMostSignificantBit(hashCode);
+//        System.out.println("Register index: " + registerIndex + " number of zeros: " + positionOfMostSignificantBit);
 //        if (positionOfMostSignificantBit > 25) {
 //            System.out.println(Thread.currentThread().getName() + "Whatafuck is going on");
 //        }
-        registers[registerIndex].set(Math.max(positionOfMostSignificantBit, registers[registerIndex].get()));
+        synchronized (registers[registerIndex]) {
+            long maximumValue = Math.max(positionOfMostSignificantBit, registers[registerIndex].get());
+            registers[registerIndex].set(maximumValue);
+        }
     }
 
     private int getPositionOfMostSignificantBit(long hashCode) {
@@ -147,5 +154,14 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
             case 64 -> 0.709;
             default -> 0.7213 / (1 + 1.079 / numberOfRegisters);
         };
+    }
+
+    public static void printBinary(long num) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 63; i >= 0; i--) {
+            // Append the bit at position i to the StringBuilder
+            sb.append((num & (1 << i)) == 0 ? '0' : '1');
+        }
+        System.out.println(sb.toString());
     }
 }
