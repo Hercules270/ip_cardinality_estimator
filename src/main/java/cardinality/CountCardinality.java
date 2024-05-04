@@ -1,6 +1,5 @@
 package cardinality;
 
-import cardinality.concurrency.IpConsumer;
 import cardinality.hash.MurmurHashProvider;
 import cardinality.hash.SimpleHashCodeProvider;
 import cardinality.hll.HyperLogLog;
@@ -26,29 +25,30 @@ public class CountCardinality {
         final var bufferedFileConsumer = new BufferedReaderConsumer(getFileName(args));
         final var fileChannelReader = new FileChannelConsumer(getFileName(args));
         final var blockingQueue = new LinkedBlockingQueue<String>();
-        final var hyperLogLog = new HyperLogLog<String>(12, new SimpleHashCodeProvider<>());
+        final var hyperLogLog = new HyperLogLog<String>(12, new MurmurHashProvider<>());
 
-        final var set = new HashSet<String>();
+        final var set = new HashSet<String>(80_370_000 * 2);
         long startTime = System.currentTimeMillis();
-        Thread readThread = new Thread(() -> fileConsumer.readAndConsume(ipAddress -> consumeIPAddress(set, blockingQueue, ipAddress), () -> action(blockingQueue)));
+        Thread readThread = new Thread(() -> fileConsumer.readAndConsume(ipAddress -> addIpAddressToQueue(set, blockingQueue, ipAddress), () -> action(blockingQueue)));
         Thread readThread2 = new Thread(() -> bufferedFileConsumer.readAndConsume(ipAddress -> doNothing(set, blockingQueue, ipAddress), () -> action(blockingQueue)));
-        Thread readThread3 = new Thread(() -> fileChannelReader.readAndConsume(ipAddress -> consumeIPAddress(set, blockingQueue, ipAddress), () -> action(blockingQueue)));
+        Thread readThread3 = new Thread(() -> fileChannelReader.readAndConsume(ipAddress -> addIpAddressToHLL(ipAddress, set, hyperLogLog), () -> action(blockingQueue)));
         System.out.println("====================");
         System.out.println("Start time is " + LocalDateTime.now());
+
 //        readThread.start();
 //        readThread2.start();
         readThread3.start();
 //        new Thread(new IpConsumer(hyperLogLog, blockingQueue, countDownLatch)).start();
-        for (int i = 0; i < 1; i++) {
-            new Thread(new IpConsumer(hyperLogLog, blockingQueue, countDownLatch)).start();
-        }
+//        for (int i = 0; i < 1; i++) {
+//            new Thread(new IpConsumer(hyperLogLog, blockingQueue, countDownLatch)).start();
+//        }
         readThread3.join();
         System.out.println("====================");
         System.out.println("Joined producer threads " + LocalDateTime.now());
-        for (int i = 0; i < 19; i++) {
-            new Thread(new IpConsumer(hyperLogLog, blockingQueue, countDownLatch)).start();
-        }
-        countDownLatch.await();
+//        for (int i = 0; i < 19; i++) {
+//            new Thread(new IpConsumer(hyperLogLog, blockingQueue, countDownLatch)).start();
+//        }
+//        countDownLatch.await();
         System.out.println("===================");
         System.out.println("Joined consumer threads " + LocalDateTime.now());
         long cardinality = hyperLogLog.getCardinality();
@@ -82,9 +82,16 @@ public class CountCardinality {
         set.add(ipAddress);
     }
 
+    private static void addIpAddressToHLL(String ipAddress, HashSet<String> set, HyperLogLog<String> hll) {
+//        if(set.size() % 10000 == 0) {
+//            System.out.println("Adding of size " + set.size());
+//        }
+//        set.add(ipAddress);
+        hll.add(ipAddress);
+    }
     static int sizeLimit = 20000;
 
-    private static void consumeIPAddress(HashSet<String> set, LinkedBlockingQueue<String> blockingQueue, String ipAddress) {
+    private static void addIpAddressToQueue(HashSet<String> set, LinkedBlockingQueue<String> blockingQueue, String ipAddress) {
         try {
 //            System.out.println("Sending: " + ipAddress);
 //            set.add(ipAddress);

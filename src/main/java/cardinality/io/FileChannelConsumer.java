@@ -21,7 +21,7 @@ public class FileChannelConsumer implements FileConsumer {
     @Override
     public void readAndConsume(Consumer<String> consumer, Actionable action) {
         try (FileChannel fileChannel = FileChannel.open(new File(fileName).toPath(), StandardOpenOption.READ);) {
-            int numberOfThreads = Runtime.getRuntime().availableProcessors() * 100;
+            int numberOfThreads = Runtime.getRuntime().availableProcessors() * 5;
             long chunkSize = fileChannel.size() / numberOfThreads;
             List<LineReaderThread> threads = new ArrayList<>();
             for (int i = 0; i < numberOfThreads; i++) {
