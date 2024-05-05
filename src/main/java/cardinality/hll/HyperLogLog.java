@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 
 /**
- * Implementation of HyperLogLog data structure, which approximates main.cardinality of elements in multiset.
+ * Implementation of HyperLogLog data structure, which approximates cardinality of elements in multiset.
  * Standard error of the result is ±2%.
  */
 public class HyperLogLog<T> implements CardinalityEstimator<T> {

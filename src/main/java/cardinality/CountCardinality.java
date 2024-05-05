@@ -13,11 +13,11 @@ public class CountCardinality {
 
     public static void main(String[] args) {
         final var fileChannelReader = new FileChannelConsumer(getFileName(args));
-        System.out.println("------> Starting to calculate main.cardinality of file " + getFileName(args) + " <------");
+        System.out.println("------> Starting to calculate cardinality of file " + getFileName(args) + " <------");
         final var hyperLogLog = new HyperLogLog<String>(12, new MurmurHashProvider<>());
         fileChannelReader.readAndConsume(ipAddress -> hyperLogLog.add(ipAddress));
         long cardinality = hyperLogLog.getCardinality();
-        System.out.println("-----> Cardinality of IP addresses: " + cardinality + " <------");
+        System.out.println("------> Cardinality of IP addresses: " + cardinality + " <------");
     }
 
     private static String getFileName(String[] args) {
