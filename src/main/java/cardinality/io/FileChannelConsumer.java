@@ -1,7 +1,6 @@
 package cardinality.io;
 
-import cardinality.concurrency.LineReaderThread;
-import cardinality.utils.Actionable;
+import cardinality.concurrency.LineReaderTask;
 
 import java.io.File;
 import java.nio.MappedByteBuffer;
@@ -11,6 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+/**
+ * Class divides file in chunks and reads lines in parallel.
+ */
 public class FileChannelConsumer implements FileConsumer {
     private final String fileName;
 
@@ -19,28 +21,22 @@ public class FileChannelConsumer implements FileConsumer {
     }
 
     @Override
-    public void readAndConsume(Consumer<String> consumer, Actionable action) {
+    public void readAndConsume(Consumer<String> consumer) {
         try (FileChannel fileChannel = FileChannel.open(new File(fileName).toPath(), StandardOpenOption.READ);) {
-            int numberOfThreads = Runtime.getRuntime().availableProcessors() * 5;
+            int numberOfThreads = Runtime.getRuntime().availableProcessors() * 20;
             long chunkSize = fileChannel.size() / numberOfThreads;
-            List<LineReaderThread> threads = new ArrayList<>();
+            List<Thread> threads = new ArrayList<>();
             for (int i = 0; i < numberOfThreads; i++) {
                 long start = i * chunkSize;
                 MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, start, chunkSize);
-                LineReaderThread lineReaderThread = new LineReaderThread(buffer, consumer);
-                threads.add(lineReaderThread);
-                lineReaderThread.start();
+                Thread thread = Thread.startVirtualThread(new LineReaderTask(buffer, consumer));
+                threads.add(thread);
             }
-            long result = 0;
-            for (LineReaderThread thread : threads) {
+            for (Thread thread : threads) {
                 thread.join();
-                result += thread.count();
             }
-            System.out.println("REsult is " + result);
         } catch (Exception ex) {
             ex.printStackTrace();
-        } finally {
-            action.doAction();
         }
     }
 }

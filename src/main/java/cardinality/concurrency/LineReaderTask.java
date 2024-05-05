@@ -3,11 +3,16 @@ package cardinality.concurrency;
 import java.nio.MappedByteBuffer;
 import java.util.function.Consumer;
 
-public class LineReaderThread extends Thread {
+
+/**
+ * Runnable class, that reads chunk of file represented by buffer field.
+ * Class applies logic contained in consumer field fore each line of file.
+ */
+public class LineReaderTask implements Runnable {
     private MappedByteBuffer buffer;
     private Consumer<String> consumer;
 
-    public LineReaderThread(MappedByteBuffer buffer, Consumer<String> consumer) {
+    public LineReaderTask(MappedByteBuffer buffer, Consumer<String> consumer) {
         this.buffer = buffer;
         this.consumer = consumer;
     }
@@ -16,19 +21,17 @@ public class LineReaderThread extends Thread {
     public void run() {
         StringBuilder builder = new StringBuilder();
         while (buffer.hasRemaining()) {
-            char k = (char) buffer.get();
-            if (k == '\n') {
-//                System.out.println("PUBLISHED IP:  " + builder);
+            char nextChar = (char) buffer.get();
+            if (isEndOfLine(nextChar)) {
                 consumer.accept(builder.toString());
                 builder = new StringBuilder();
             } else {
-                builder.append(k);
+                builder.append(nextChar);
             }
         }
     }
 
-    public long count() {
-        return 0;
+    private boolean isEndOfLine(char nextChar) {
+        return nextChar == '\n';
     }
-
 }

@@ -4,24 +4,25 @@ import cardinality.hash.HashCodeProvider;
 import cardinality.hash.SimpleHashCodeProvider;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+
+/**
+ * Implementation of HyperLogLog data structure, which approximates main.cardinality of elements in multiset.
+ * Standard error of the result is ±2%.
+ */
 public class HyperLogLog<T> implements CardinalityEstimator<T> {
 
-    private static final int DEFAULT_LOG_OF_NUMBER_OF_REGISTERS = 5;
+    private static final int DEFAULT_LOG_OF_NUMBER_OF_REGISTERS = 12;
     private static final int MINIMUM_LOG_OF_NUMBER_OF_REGISTERS = 2;
     private static final int MAXIMUM_LOG_OF_NUMBER_OF_REGISTERS = 16;
     private static final HashCodeProvider DEFAULT_HASH_CODE_PROVIDER = new SimpleHashCodeProvider<>();
     private static final double SMALL_RANGE_CORRECTION_COEFFICIENT = 5 / 2;
-    private static final double LARGE_RANGE_CORRECTION_COEFFICIENT = (1.0 / 30) * Math.pow(2, 32);
-    private final int logOfNumberOfRegisters; // b where m = 2^b
-    private final int numberOfRegisters; // m
-    private final AtomicLong[] registers; // M[j] registers
-    private final HashCodeProvider<T> hashCodeProvider; // h(D) hash function
+    private final int logOfNumberOfRegisters;
+    private final int numberOfRegisters;
+    private final AtomicLong[] registers;
+    private final HashCodeProvider<T> hashCodeProvider;
     private final int registerIndexMask;
-    private final Map<String, Integer> map;
 
     public HyperLogLog() {
         this(DEFAULT_LOG_OF_NUMBER_OF_REGISTERS, DEFAULT_HASH_CODE_PROVIDER);
@@ -29,14 +30,11 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
 
     public HyperLogLog(int logOfNumberOfRegisters, HashCodeProvider<T> hashCodeProvider) {
         validateNumberOfRegisters(logOfNumberOfRegisters);
-
         this.logOfNumberOfRegisters = logOfNumberOfRegisters;
         this.numberOfRegisters = 1 << logOfNumberOfRegisters;
         this.registerIndexMask = numberOfRegisters - 1;
         this.registers = initializeRegisters(numberOfRegisters);
         this.hashCodeProvider = hashCodeProvider;
-        this.map = new HashMap<>();
-
     }
 
     private AtomicLong[] initializeRegisters(int numberOfRegisters) {
@@ -49,7 +47,7 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
 
     private void validateNumberOfRegisters(int logOfNumberOfRegisters) {
         if (logOfNumberOfRegisters < MINIMUM_LOG_OF_NUMBER_OF_REGISTERS && logOfNumberOfRegisters > MAXIMUM_LOG_OF_NUMBER_OF_REGISTERS) {
-            throw new IllegalArgumentException("Logarithm for number of registers must be between " + MINIMUM_LOG_OF_NUMBER_OF_REGISTERS + " and "
+            throw new IllegalArgumentException("Logarithm of number of registers must be between " + MINIMUM_LOG_OF_NUMBER_OF_REGISTERS + " and "
                     + MAXIMUM_LOG_OF_NUMBER_OF_REGISTERS +
                     " (value was " + logOfNumberOfRegisters + ").");
         }
@@ -58,16 +56,8 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
     @Override
     public void add(T t) {
         long hashCode = hashCodeProvider.hashCode(t); // step 1 get hashcode
-//        System.out.println(t);
-//        printBinary(hashCode);
-//        System.out.println(Long.toBinaryString(hashCode));
-//        System.out.println("Long string size " + Long.toBinaryString(hashCode).length() + " Leading zeros " + Long.numberOfLeadingZeros(hashCode));
         int registerIndex = getRegisterNumber(hashCode);
         int positionOfMostSignificantBit = getPositionOfMostSignificantBit(hashCode);
-//        System.out.println("Register index: " + registerIndex + " number of zeros: " + positionOfMostSignificantBit);
-//        if (positionOfMostSignificantBit > 25) {
-//            System.out.println(Thread.currentThread().getName() + "Whatafuck is going on");
-//        }
         synchronized (registers[registerIndex]) {
             long maximumValue = Math.max(positionOfMostSignificantBit, registers[registerIndex].get());
             registers[registerIndex].set(maximumValue);
@@ -85,27 +75,10 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
     @Override
     public long getCardinality() {
         final double harmonicMeanOfRegisters = getHarmonicMeanOfRegisters();
-        System.out.println("Harmonic mean of registers is " + harmonicMeanOfRegisters);
         final double correctionCoefficient = calculateAlpha(numberOfRegisters);
-        System.out.println("Correction coefficient is " + correctionCoefficient);
         final double estimate = correctionCoefficient * Math.pow(numberOfRegisters, 2) * harmonicMeanOfRegisters;
-        System.out.println("Initial estimate is " + estimate);
         long adjustEstimate = adjustEstimate(estimate);
-        System.out.println("Adjusted estimate is " + adjustEstimate);
-        printRegisters();
         return adjustEstimate;
-    }
-
-    private void printRegisters() {
-
-        Map<Long, Long> map = new HashMap<>();
-        for (AtomicLong x : registers) {
-            if (map.get(x.get()) == null) {
-                map.put(x.get(), 0L);
-            }
-            map.put(x.get(), map.get(x.get()) + 1);
-        }
-        System.out.println("Registers is " + map);
     }
 
     private long adjustEstimate(double estimate) {
@@ -117,10 +90,6 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
         return Double.valueOf(estimate).longValue();
     }
 
-    private long adjustLargeRange(double estimate) {
-        return Double.valueOf(Math.pow(2, 32) * Math.log(1 - estimate / Math.pow(2, 32))).longValue();
-    }
-
     private long adjustSmallRange(double estimate) {
         long numberOfZeroRegisters = Arrays.stream(registers)
                 .filter(atomicLong -> atomicLong.longValue() == 0)
@@ -129,10 +98,6 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
             return Double.valueOf(numberOfRegisters * Math.log(numberOfRegisters / numberOfZeroRegisters)).longValue();
         }
         return Double.valueOf(estimate).longValue();
-    }
-
-    private boolean requiresLargeRangeCorrection(double estimate) {
-        return estimate > LARGE_RANGE_CORRECTION_COEFFICIENT;
     }
 
     private boolean requiresSmallRangeCorrection(double estimate) {
@@ -154,14 +119,5 @@ public class HyperLogLog<T> implements CardinalityEstimator<T> {
             case 64 -> 0.709;
             default -> 0.7213 / (1 + 1.079 / numberOfRegisters);
         };
-    }
-
-    public static void printBinary(long num) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 63; i >= 0; i--) {
-            // Append the bit at position i to the StringBuilder
-            sb.append((num & (1 << i)) == 0 ? '0' : '1');
-        }
-        System.out.println(sb.toString());
     }
 }

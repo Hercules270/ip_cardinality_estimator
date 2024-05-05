@@ -1,7 +1,5 @@
 package cardinality.io;
 
-import cardinality.utils.Actionable;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,21 +15,12 @@ public class OneThreadConsumer implements FileConsumer {
     }
 
     @Override
-    public void readAndConsume(Consumer<String> consumer, Actionable action) {
+    public void readAndConsume(Consumer<String> consumer) {
         File file = new File(fileName);
         try (Stream<String> lineStream = Files.lines(file.toPath())) {
-            lineStream
-//                    .skip(1_000_000)
-//                    .limit(10_000_000)
-//                    .forEach(s -> System.out.println(s));
-                    .forEach(s -> {
-//                        System.out.println("Producing " + s);
-                        consumer.accept(s);
-                    });
+            lineStream.forEach(s -> consumer.accept(s));
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } finally {
-            action.doAction();
         }
     }
 }
